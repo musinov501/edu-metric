@@ -1,0 +1,433 @@
+// EduMetric CRM — canonical Prisma schema
+// Source-of-truth tables: Group 2 architecture
+// Source-of-truth KPI rules: Group 3 architecture
+//
+// Every score is traceable. Every action is logged. Every change has history.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  STUDENT
+  MENTOR
+  TUTOR
+  ADMIN
+  SUPER_ADMIN
+  // GUEST is not stored in DB — guests have no account.
+}
+
+enum ScholarshipStatus {
+  ELIGIBLE
+  AT_RISK
+  REJECTED
+  UNDER_REVIEW
+}
+
+enum AchievementType {
+  HACKATHON
+  CERTIFICATE
+  STARTUP
+  VOLUNTEER
+  MENTORING
+  EMPLOYMENT
+  OTHER
+}
+
+enum AchievementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVISION_REQUIRED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum PenaltyType {
+  LATE
+  PHONE_USAGE
+  ABSENCE
+  PLAGIARISM
+  DORMITORY_VIOLATION
+  DISRESPECT
+  OTHER
+}
+
+enum PenaltySeverity {
+  MINOR
+  MEDIUM
+  MAJOR
+  CRITICAL
+}
+
+enum RecoveryStatus {
+  PENDING
+  COMPLETED
+  REJECTED
+}
+
+enum EmploymentType {
+  INTERNSHIP
+  PART_TIME
+  FULL_TIME
+}
+
+// ─────────────────────────────────────────────────────────────
+// CORE: USERS & ROLE-SPECIFIC PROFILES
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  fullName     String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STUDENT)
+  avatar       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student Student?
+  mentor  Mentor?
+  tutor   Tutor?
+
+  // Things this user *acted on*
+  achievementsVerified Achievement[]        @relation("AchievementVerifier")
+  attendanceRecorded   Attendance[]         @relation("AttendanceRecorder")
+  assignmentsReviewed  Assignment[]         @relation("AssignmentReviewer")
+  penaltiesIssued      Penalty[]            @relation("PenaltyIssuer")
+  recoveriesVerified   Recovery[]           @relation("RecoveryVerifier")
+  employmentApproved   EmploymentBonus[]    @relation("EmploymentApprover")
+  tutorEvaluations     TutorEvaluation[]    @relation("TutorEvaluator")
+  activityLogs         ActivityLog[]        @relation("ActivityActor")
+  notifications        Notification[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Student {
+  id                  String            @id @default(uuid())
+  userId              String            @unique
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId           String            @unique // university student ID
+  faculty             String
+  group               String
+  courseYear          Int
+  gpa                 Float             @default(0)
+  attendancePercent   Float             @default(0)
+  scholarshipStatus   ScholarshipStatus @default(UNDER_REVIEW)
+  overallScore        Float             @default(0)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  assignments         StudentAssignment[]
+  achievements        Achievement[]
+  attendance          Attendance[]
+  studentAssignments  Assignment[]
+  tutorEvaluations    TutorEvaluation[]
+  penalties           Penalty[]
+  recoveries          Recovery[]
+  employmentBonuses   EmploymentBonus[]
+  kpiScores           KpiScore[]
+  kpiHistory          KpiHistory[]
+  activityLogs        ActivityLog[]     @relation("ActivityTargetStudent")
+
+  @@index([faculty, group])
+  @@index([scholarshipStatus])
+  @@index([overallScore])
+  @@map("students")
+}
+
+model Mentor {
+  id              String   @id @default(uuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialization  String?
+  assignedGroups  String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  studentAssignments StudentAssignment[]
+
+  @@map("mentors")
+}
+
+model Tutor {
+  id                 String   @id @default(uuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedDormitory  String?
+  assignedGroups     String[] @default([])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  studentAssignments StudentAssignment[]
+
+  @@map("tutors")
+}
+
+model StudentAssignment {
+  id        String   @id @default(uuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  mentorId  String?
+  mentor    Mentor?  @relation(fields: [mentorId], references: [id], onDelete: SetNull)
+  tutorId   String?
+  tutor     Tutor?   @relation(fields: [tutorId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@unique([studentId])
+  @@index([mentorId])
+  @@index([tutorId])
+  @@map("student_assignments")
+}
+
+// ─────────────────────────────────────────────────────────────
+// KPI: SCORES + HISTORY (the transparency engine)
+// ─────────────────────────────────────────────────────────────
+
+model KpiScore {
+  id                String   @id @default(uuid())
+  studentId         String
+  student           Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  academicScore     Float    @default(0)  // max 40
+  attendanceScore   Float    @default(0)  // max 20
+  assignmentScore   Float    @default(0)  // max 15
+  activityScore     Float    @default(0)  // max 10
+  tutorScore        Float    @default(0)  // max 5
+  disciplineScore   Float    @default(10) // starts at 10, floor 0
+  penaltyScore      Float    @default(0)  // capped at -20
+  recoveryScore     Float    @default(0)  // capped at +10
+  employmentBonus   Float    @default(0)  // capped at +10
+  finalScore        Float    @default(0)
+  semester          String
+  computedAt        DateTime @default(now())
+
+  @@unique([studentId, semester])
+  @@index([finalScore])
+  @@map("kpi_scores")
+}
+
+model KpiHistory {
+  id        String   @id @default(uuid())
+  studentId String
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  oldScore  Float
+  newScore  Float
+  reason    String
+  metadata  Json?
+  timestamp DateTime @default(now())
+
+  @@index([studentId, timestamp])
+  @@map("kpi_history")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ACHIEVEMENTS
+// ─────────────────────────────────────────────────────────────
+
+model Achievement {
+  id          String             @id @default(uuid())
+  studentId   String
+  student     Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type        AchievementType
+  title       String
+  description String?
+  fileUrl     String?
+  externalLink String?
+  fileHash    String?            // for smart duplicate detection
+  score       Float              @default(0)
+  status      AchievementStatus  @default(PENDING)
+  verifiedById String?
+  verifiedBy   User?             @relation("AchievementVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  reviewNotes String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([studentId, status])
+  @@index([fileHash])
+  @@map("achievements")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ATTENDANCE
+// ─────────────────────────────────────────────────────────────
+
+model Attendance {
+  id           String           @id @default(uuid())
+  studentId    String
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject      String
+  date         DateTime
+  status       AttendanceStatus
+  recordedById String
+  recordedBy   User             @relation("AttendanceRecorder", fields: [recordedById], references: [id])
+  createdAt    DateTime         @default(now())
+
+  @@unique([studentId, subject, date])
+  @@index([studentId, date])
+  @@map("attendance")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ASSIGNMENTS & PROJECTS (weighted: C 30%, Q 30%, O 25%, D 15%)
+// ─────────────────────────────────────────────────────────────
+
+model Assignment {
+  id               String   @id @default(uuid())
+  studentId        String
+  student          Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  subject          String
+  title            String
+  completionScore  Float    @default(0)  // 0-100
+  qualityScore     Float    @default(0)  // 0-100
+  originalityScore Float    @default(0)  // 0-100 (auto-zero on plagiarism flag)
+  deadlineScore    Float    @default(0)  // 0-100
+  totalScore       Float    @default(0)
+  plagiarismFlag   Boolean  @default(false)
+  reviewedById     String?
+  reviewedBy       User?    @relation("AssignmentReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([studentId])
+  @@map("assignments")
+}
+
+// ─────────────────────────────────────────────────────────────
+// TUTOR EVALUATIONS (5 categories × 20% = avg)
+// ─────────────────────────────────────────────────────────────
+
+model TutorEvaluation {
+  id             String   @id @default(uuid())
+  studentId      String
+  student        Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  tutorId        String
+  tutor          User     @relation("TutorEvaluator", fields: [tutorId], references: [id])
+  ethics         Float    // 0-5
+  communication  Float    // 0-5
+  socialActivity Float    // 0-5
+  discipline     Float    // 0-5
+  motivation     Float    // 0-5
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  @@index([studentId])
+  @@index([tutorId])
+  @@map("tutor_evaluations")
+}
+
+// ─────────────────────────────────────────────────────────────
+// PENALTIES (capped at -20 total)
+// ─────────────────────────────────────────────────────────────
+
+model Penalty {
+  id         String           @id @default(uuid())
+  studentId  String
+  student    Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  type       PenaltyType
+  reason     String
+  points     Float
+  severity   PenaltySeverity
+  issuedById String
+  issuedBy   User             @relation("PenaltyIssuer", fields: [issuedById], references: [id])
+  createdAt  DateTime         @default(now())
+
+  @@index([studentId, createdAt])
+  @@map("penalties")
+}
+
+// ─────────────────────────────────────────────────────────────
+// RECOVERY (RecoveryPoints = min(|Penalty|/2, 10))
+// ─────────────────────────────────────────────────────────────
+
+model Recovery {
+  id              String         @id @default(uuid())
+  studentId       String
+  student         Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assignedTask    String
+  recoveredPoints Float          @default(0)
+  status          RecoveryStatus @default(PENDING)
+  verifiedById    String?
+  verifiedBy      User?          @relation("RecoveryVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime       @default(now())
+  completedAt     DateTime?
+
+  @@index([studentId, status])
+  @@map("recoveries")
+}
+
+// ─────────────────────────────────────────────────────────────
+// EMPLOYMENT BONUS (capped at +10)
+// ─────────────────────────────────────────────────────────────
+
+model EmploymentBonus {
+  id             String         @id @default(uuid())
+  studentId      String
+  student        Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  companyName    String
+  employmentType EmploymentType
+  position       String
+  proofFile      String?
+  bonusPoints    Float          @default(0)
+  approvedById   String?
+  approvedBy     User?          @relation("EmploymentApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime       @default(now())
+
+  @@index([studentId])
+  @@map("employment_bonuses")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ACTIVITY LOG (transparency engine — every action logs)
+// ─────────────────────────────────────────────────────────────
+
+model ActivityLog {
+  id              String   @id @default(uuid())
+  actorId         String
+  actor           User     @relation("ActivityActor", fields: [actorId], references: [id])
+  targetStudentId String?
+  targetStudent   Student? @relation("ActivityTargetStudent", fields: [targetStudentId], references: [id], onDelete: SetNull)
+  actionType      String   // e.g. ACHIEVEMENT_APPROVED, PENALTY_ADDED, KPI_RECALCULATED
+  description     String
+  metadata        Json?
+  createdAt       DateTime @default(now())
+
+  @@index([actorId])
+  @@index([targetStudentId, createdAt])
+  @@index([actionType, createdAt])
+  @@map("activity_logs")
+}
+
+// ─────────────────────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO") // SUCCESS | WARNING | CRITICAL | INFO
+  isRead    Boolean  @default(false)
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
+}
