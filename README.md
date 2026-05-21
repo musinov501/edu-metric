@@ -39,7 +39,11 @@ edumetric-crm/
 
 Hard rule: **GPA < 80% → scholarship auto-REJECTED.** See [docs/KPI-ENGINE.md](docs/KPI-ENGINE.md).
 
-## Getting started
+## Deploy without running locally
+
+See **[DEPLOY.md](DEPLOY.md)** — Vercel or Netlify for the frontend, Render (free) for API + Postgres. Demo logins are seeded automatically.
+
+## Getting started (local dev)
 
 ```bash
 # 1. Install everything

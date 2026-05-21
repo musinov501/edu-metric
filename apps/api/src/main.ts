@@ -40,8 +40,8 @@ async function bootstrap() {
   }
 
   const port = config.get<number>('PORT') ?? 4000;
-  await app.listen(port);
-  console.log(`EduMetric API → http://localhost:${port}${apiPrefix}`);
+  await app.listen(port, '0.0.0.0');
+  console.log(`EduMetric API listening on port ${port} (${apiPrefix})`);
 }
 
 bootstrap();

@@ -17,7 +17,9 @@
     "db:migrate": "npm run prisma:migrate -w apps/api",
     "db:seed": "npm run prisma:seed -w apps/api",
     "db:studio": "npm run prisma:studio -w apps/api",
-    "setup": "npm install && npm run db:generate && npm run db:push && npm run db:seed"
+    "setup": "npm install && npm run db:generate && npm run db:push && npm run db:seed",
+    "vercel-build": "npm run build -w apps/web",
+    "netlify-build": "npm run build -w apps/web"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",

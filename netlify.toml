@@ -1,0 +1,15 @@
+# Netlify — deploy the Next.js app from the monorepo (no local dev required).
+# Dashboard: connect repo → these settings apply automatically.
+# Env: set NEXT_PUBLIC_API_URL to your Render API URL (see DEPLOY.md).
+
+[build]
+  base = "apps/web"
+  command = "cd ../.. && npm install && npm run build -w @edumetric/web"
+  # publish directory is managed by @netlify/plugin-nextjs
+
+[build.environment]
+  NODE_VERSION = "20"
+  NPM_FLAGS = "--include=dev"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
