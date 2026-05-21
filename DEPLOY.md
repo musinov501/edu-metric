@@ -93,6 +93,7 @@ Open your frontend URL → **Login** with a demo account above.
 | CORS error in browser console | Set `CORS_ORIGIN` on Render to your exact frontend URL |
 | API sleeps (free tier) | First request after ~15 min idle may take 30–60s — normal on Render free |
 | Build fails on Vercel/Netlify | Node **20+**; Root Directory must be `apps/web` for Vercel |
+| Render API **deploy failed** | Open **edumetric-api** → **Logs** → look for red errors. Common fix: push latest `render.yaml` (uses `npm install --include=dev`), then **Manual Deploy** → **Clear build cache & deploy** |
 
 ---
 

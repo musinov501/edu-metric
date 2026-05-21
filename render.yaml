@@ -14,16 +14,14 @@ services:
     plan: free
     region: oregon
     buildCommand: >-
-      npm install &&
+      npm install --include=dev &&
       npm run db:generate &&
       npm run build -w apps/api &&
       npx prisma db push --schema=apps/api/prisma/schema.prisma --skip-generate &&
       npm run db:seed -w apps/api
-    startCommand: npm run start:prod -w apps/api
+    startCommand: NODE_ENV=production npm run start:prod -w apps/api
     healthCheckPath: /api/v1/health
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: API_PREFIX
         value: /api/v1
       - key: DATABASE_URL
