@@ -3,9 +3,10 @@
 # Env: set NEXT_PUBLIC_API_URL to your Render API URL (see DEPLOY.md).
 
 [build]
+  # Base = apps/web so .next lives at apps/web/.next (NOT apps/web/apps/web/.next)
   base = "apps/web"
   command = "cd ../.. && npm install && npm run build -w @edumetric/web"
-  # publish directory is managed by @netlify/plugin-nextjs
+  publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"

@@ -58,8 +58,11 @@ The blueprint runs `prisma db push` and **seeds demo data** (accounts below).
 
 1. [app.netlify.com](https://app.netlify.com) → **Add new site** → **Import from Git**.
 2. Build settings are read from [`netlify.toml`](netlify.toml) at the repo root.
-3. Set the same env vars as Vercel (`NEXT_PUBLIC_API_URL`, etc.).
-4. Deploy and copy your Netlify URL.
+3. **Site configuration** → **Build & deploy** → **Build settings**:
+   - **Base directory:** leave empty (toml sets `apps/web`) OR set `apps/web` — not both duplicated
+   - **Publish directory:** leave **empty** or set `.next` only — **never** `apps/web/.next` (causes `apps/web/apps/web/.next` error)
+4. Set env vars (`NEXT_PUBLIC_API_URL`, etc.).
+5. Deploy and copy your Netlify URL.
 
 ---
 
