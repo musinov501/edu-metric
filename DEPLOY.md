@@ -20,7 +20,9 @@ Vercel/Netlify only host the frontend. The API is deployed separately on Render 
    - `edumetric-api` (NestJS)
 4. When prompted for **CORS_ORIGIN**, leave blank for now (you will set it in Step 3).
 5. Wait until the API service is **Live**. Copy its URL, e.g. `https://edumetric-api.onrender.com`.
-6. Confirm health: open `https://YOUR-API-URL/api/v1/health` — you should see `{"status":"ok",...}`.
+6. Confirm the API is up:
+   - `https://YOUR-API-URL/` — welcome JSON (not 404)
+   - `https://YOUR-API-URL/api/v1/health` — `{"status":"ok",...}`
 
 The blueprint runs `prisma db push` and **seeds demo data** (accounts below).
 

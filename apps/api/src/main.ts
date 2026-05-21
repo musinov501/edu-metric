@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { RequestMethod, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
@@ -10,8 +10,10 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: false });
   const config = app.get(ConfigService);
 
-  const apiPrefix = config.get<string>('API_PREFIX') ?? '/api/v1';
-  app.setGlobalPrefix(apiPrefix);
+  const apiPrefix = (config.get<string>('API_PREFIX') ?? '/api/v1').replace(/\/$/, '');
+  app.setGlobalPrefix(apiPrefix, {
+    exclude: [{ path: '', method: RequestMethod.GET }],
+  });
 
   app.use(helmet());
   app.enableCors({
